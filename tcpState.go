@@ -1,4 +1,4 @@
-/* 
+/*
  *  Copyright 2011 Daniel Arndt
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -34,6 +34,8 @@ const (
 	TCP_STATE_SYNACK
 	TCP_STATE_ESTABLISHED
 	TCP_STATE_FIN
+	TCP_STATE_RST
+	TCP_STATE_RST_CLOSED
 	TCP_STATE_CLOSED
 )
 
@@ -47,7 +49,9 @@ func tcpSet(find int64, flags int64) bool {
 
 func (t *tcpState) TcpUpdate(flags int64, dir int8, pdir int8) {
 	if tcpSet(TCP_RST, flags) {
-		t.State = TCP_STATE_CLOSED
+		t.State = TCP_STATE_RST
+	} else if t.State == TCP_STATE_RST {
+		t.State = TCP_STATE_RST
 	} else if tcpSet(TCP_FIN, flags) && (dir == pdir) {
 		t.State = TCP_STATE_FIN
 	} else if t.State == TCP_STATE_FIN {

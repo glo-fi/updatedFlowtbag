@@ -1,4 +1,4 @@
-/* 
+/*
  *  Copyright 2011 Daniel Arndt
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,7 +22,7 @@ package main
 import (
 	"fmt"
 	"log"
-        "time"
+	"time"
 )
 
 const (
@@ -40,8 +40,8 @@ const (
 const (
 	// Configurables. These should at some point be read in from a configuration
 	// file.
-	FLOW_TIMEOUT   = 600000000
-	IDLE_THRESHOLD = 1000000
+	FLOW_TIMEOUT   = 600000000000
+	IDLE_THRESHOLD = 1000000000
 )
 
 // This is how we represent each packet after it is decoded. A simple map from the
@@ -73,6 +73,7 @@ const (
 	BURG_CNT
 	TOTAL_FHLEN
 	TOTAL_BHLEN
+	TIME_PREV_SAME_HOST
 	NUM_FEATURES // Not a real feature. Just the total number of features.
 )
 
@@ -89,7 +90,7 @@ type Flow struct {
 	hasData     bool     // Whether the connection has had any data transmitted.
 	isBidir     bool     // Is the flow bi-directional?
 	pdir        int8     // Direction of the current packet
-        unixTime    string   // Timestamp
+	unixTime    string   // Timestamp
 	srcip       string   // IP address of the source (client)
 	srcport     uint16   // Port number of the source connection
 	dstip       string   // IP address of the destination (server)
@@ -128,6 +129,7 @@ func (f *Flow) Init(srcip string,
 	f.f[BURG_CNT] = new(ValueFeature)
 	f.f[TOTAL_FHLEN] = new(ValueFeature)
 	f.f[TOTAL_BHLEN] = new(ValueFeature)
+	f.f[TIME_PREV_SAME_HOST] = new(ValueFeature)
 	//for i := 0; i < NUM_FEATURES; i++ {
 	//    f.f[i].Set(0)
 	//}
@@ -140,11 +142,12 @@ func (f *Flow) Init(srcip string,
 	f.dscp = uint8(pkt["dscp"])
 	// ---------------------------------------------------------
 	f.f[TOTAL_FPACKETS].Set(1)
+	f.f[TIME_PREV_SAME_HOST].Set(0)
 	length := pkt["len"]
 	f.f[TOTAL_FVOLUME].Set(length)
 	f.f[FPKTL].Add(length)
 	f.firstTime = pkt["time"]
-        f.unixTime = time.Unix(f.firstTime, 0).String()
+	f.unixTime = time.Unix(0, f.firstTime).UTC().String()
 	f.flast = f.firstTime
 	f.activeStart = f.firstTime
 	if f.proto == IP_TCP {
@@ -187,7 +190,7 @@ func (f *Flow) updateStatus(pkt packet) {
 			if f.cstate.State == TCP_STATE_ESTABLISHED {
 				if pkt["len"] >= (pkt["iphlen"] + pkt["prhlen"]) {
 					f.valid = true
-				} 
+				}
 			}
 		}
 		f.updateTcpState(pkt)
@@ -310,7 +313,7 @@ func (f *Flow) Add(pkt packet, srcip string) int {
 }
 
 func (f *Flow) Export() {
-	if !f.valid {
+	if !f.valid && unidirectional {
 		return
 	}
 
@@ -337,7 +340,7 @@ func (f *Flow) Export() {
 		log.Fatalf("duration (%d) < 0", f.f[DURATION])
 	}
 	fmt.Printf("%s,%s,%d,%s,%d,%d",
-                f.unixTime,
+		f.unixTime,
 		string(f.srcip),
 		f.srcport,
 		string(f.dstip),
@@ -355,4 +358,14 @@ func (f *Flow) CheckIdle(time int64) bool {
 		return true
 	}
 	return false
+}
+
+func (f *Flow) getPreviousFlowStart(reduced_ts string, activeFlowTimings map[string][]int64) int64 {
+	var prev_time int64 = 0
+	var curr_time int64 = 0
+	if len(activeFlowTimings[reduced_ts]) > 2 {
+		prev_time = activeFlowTimings[reduced_ts][len(activeFlowTimings[reduced_ts])-2]
+		curr_time = activeFlowTimings[reduced_ts][len(activeFlowTimings[reduced_ts])-1]
+	}
+	return (curr_time - prev_time)
 }
