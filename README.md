@@ -90,13 +90,21 @@ of meaning. However, this shouldn't be complicated to add.
 
 Standard Usage: `./Flowtbag [FLAGS] [PCAP]`
 `-l: Capture traffic live from wlo0` (requires root permissions)
+
 `-d: Capture flows in LUCID format` (i.e., packet-level stats)
+
 `-c: Apply Crypto-PAn to IPs`
+
 `-k: Provide Crypto-PAn key file` (not implemented)
+
 `-o: Output folder (default ./results/)` (for LUCID format flows)
+
 `-p: Collect stats in differential private manner`
+
 `-r: The interval at which to report the current state of Flowtbag (default 500000)`
+
 `-u: Export flows stats for unidirectional flows`
+
 
 ## Output
 
