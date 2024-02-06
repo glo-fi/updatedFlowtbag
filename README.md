@@ -17,13 +17,15 @@ limitations under the License.
 Author: 
     Daniel Arndt <danielarndt@gmail.com> (http://dan.arndt.ca)
 
-Code edited and updated by Robert Flood
+Code edited and updated (extensively) by Robert Flood <r.flood@ed.ac.uk>
 
 ## Purpose
 
 The purpose of this program is to calculate flow statistics from a given 
 capture file. Flowtbag was designed with offline processing as the primary
-focus.
+focus, but has been extended to include online processing. Note: this seems
+to mess with closing flows via timeouts. Make sure to choose a sesible
+timeout value!
 
 ## Requirements
 
@@ -58,14 +60,43 @@ build and install using go.
 
    go get github.com/danielarndt/flowtbag
 
+
+## Privacy Features
+
+Flowtbag has been updated to include two ways of perturbing output
+and provide some privacy guarentees. 
+
+Firstly, IP addresses can be anonymised via the 
+[Crypto-PAn](https://en.wikipedia.org/wiki/Crypto-PAn) algorithm. 
+This maps IP addressed whilst maintaining their subnet structure. 
+Keys are currently generated randomly and then discarded, making this process irreversible.
+Support for key input and de-anonymisation should be easy to add.
+
+Secondly, features can be collected in accordance with
+Google's [dpagg](https://pkg.go.dev/github.com/google/differential-privacy/go/dpagg?utm_source=godoc) library. Thus, all
+statistics will be calculated in a differentially private manner, if
+you're convinced that, say, the standard deviation of packet lengths
+is a particularly sensitive attribute. We do this via the Laplace mechanism, as it requires fewer hyperparameters. Note that it's 
+unlikely we achieve 'true' local differential privacy e.g, webpages can be visited multiple times, using up the privacy budget in an 
+unpredictable way. However, rarely accessed services should have stronger guarantees.
+
+Currently, the hyperparameters for the differential private feature
+collection are fixed across all features. This is stupid: they 
+need to be read individually from a file in order to have any sort
+of meaning. However, this shouldn't be complicated to add.
+
+
 ## Usage
 
-The program's usage is currently left undocumented due to the rapidly
-changing functionality of the program in its early stages. However, if you
-run flowtbag, the currently implemented options should be displayed. A
-typical use case might look something like:
-
-    $ ./flowtbag test.cap > test.out
+Standard Usage: `./Flowtbag [FLAGS] [PCAP]`
+`-l: Capture traffic live from wlo0` (requires root permissions)
+`-d: Capture flows in LUCID format` (i.e., packet-level stats)
+`-c: Apply Crypto-PAn to IPs`
+`-k: Provide Crypto-PAn key file` (not implemented)
+`-o: Output folder (default ./results/)` (for LUCID format flows)
+`-p: Collect stats in differential private manner`
+`-r: The interval at which to report the current state of Flowtbag (default 500000)`
+`-u: Export flows stats for unidirectional flows`
 
 ## Output
 
@@ -74,13 +105,12 @@ of comma seperated values is output. Line by line, these represent the flows
 in the capture. The features output are given, in order, in section 4.1. The
 second output channel is stderr. This is where reports, as well as any
 debugging information is displayed. This allows the user to redirect output
-to a text file, and still receive updates as the program runs. The setup for
-output is likely to change in future versions of Flowtbag when a better
-system is designed.
+to a text file, and still receive updates as the program runs. Output should probably sent to a specified file in the future.
 
-### Features
 
-    srcip STRING
+### Statistics
+
+    srcip STRINGq
     srcport NUMERIC
     dstip STRING
     dstport NUMERIC
