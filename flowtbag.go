@@ -90,10 +90,14 @@ var (
 	liveCapture        bool
 	unidirectional     bool
 	lucidCapture       bool
+	cryptoPanOn        bool
 	outputFolder       string
+	keyFile            string
 	flowStatBuffer     [][][]int64
 	flowMetadataBuffer [][]interface{}
 	initTime           string
+	ctx                *Cryptopan
+	diffPriv           bool
 )
 
 func init() {
@@ -102,7 +106,10 @@ func init() {
 	flag.BoolVar(&liveCapture, "l", false,
 		"Capture traffic live from eth0")
 	flag.BoolVar(&lucidCapture, "d", false, "Capture flows in Lucid format")
+	flag.BoolVar(&cryptoPanOn, "c", false, "Apply CryptoPan to IPs")
+	flag.StringVar(&keyFile, "k", "", "Provide key file for crypto-pan")
 	flag.BoolVar(&unidirectional, "u", false, "Export flows stats for unidirectional flows")
+	flag.BoolVar(&diffPriv, "p", false, "Export flow stats with diffpriv")
 	flag.StringVar(&outputFolder, "o", "results", "Output flow statistics to specified folder")
 	flag.Parse()
 	fullInitTime := time.Now()
@@ -112,6 +119,14 @@ func init() {
 	err := os.MkdirAll(fmt.Sprintf("%s/%s/", outputFolder, initTime), 0755)
 	if err != nil {
 		panic(err)
+	}
+	if cryptoPanOn == true {
+		key := randomKey()
+		cpan, err := New(key)
+		if err != nil {
+			panic(err)
+		}
+		ctx = cpan
 	}
 	fileName = flag.Arg(0)
 	if !liveCapture {
@@ -508,7 +523,7 @@ func CollectLiveFlowStats() {
 		p   *pcap.Handle
 		err error
 	)
-	p, err = pcap.OpenLive("wlo1", 1600, true, pcap.BlockForever)
+	p, err = pcap.OpenLive("wlo1", 10000, true, pcap.BlockForever)
 	if p == nil {
 		log.Fatalf("OpenLive(wlo1) failed: %s\n", err)
 	}

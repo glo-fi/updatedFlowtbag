@@ -112,13 +112,24 @@ func (f *Flow) Init(srcip string,
 	f.f[TOTAL_FVOLUME] = new(ValueFeature)
 	f.f[TOTAL_BPACKETS] = new(ValueFeature)
 	f.f[TOTAL_BVOLUME] = new(ValueFeature)
-	f.f[FPKTL] = new(DistributionFeature)
-	f.f[BPKTL] = new(DistributionFeature)
-	f.f[FIAT] = new(DistributionFeature)
-	f.f[BIAT] = new(DistributionFeature)
-	f.f[DURATION] = new(ValueFeature)
-	f.f[ACTIVE] = new(DistributionFeature)
-	f.f[IDLE] = new(DistributionFeature)
+	if diffPriv {
+		f.f[FPKTL] = new(DiffPrivFeature)
+		//SuperInit(f.f[FPKTL], "test") <- Need to do a type check if we want to read parameters from file
+		f.f[BPKTL] = new(DiffPrivFeature)
+		f.f[FIAT] = new(DiffPrivFeature)
+		f.f[BIAT] = new(DiffPrivFeature)
+		f.f[DURATION] = new(ValueFeature)
+		f.f[ACTIVE] = new(DiffPrivFeature)
+		f.f[IDLE] = new(DiffPrivFeature)
+	} else {
+		f.f[FPKTL] = new(DistributionFeature)
+		f.f[BPKTL] = new(DistributionFeature)
+		f.f[FIAT] = new(DistributionFeature)
+		f.f[BIAT] = new(DistributionFeature)
+		f.f[DURATION] = new(ValueFeature)
+		f.f[ACTIVE] = new(DistributionFeature)
+		f.f[IDLE] = new(DistributionFeature)
+	}
 	f.f[SFLOW_FPACKETS] = new(ValueFeature)
 	f.f[SFLOW_FBYTES] = new(ValueFeature)
 	f.f[SFLOW_BPACKETS] = new(ValueFeature)
@@ -317,6 +328,10 @@ func (f *Flow) Export() {
 		return
 	}
 
+	if cryptoPanOn {
+		f = ctx.AnonymiseFlow(f)
+	}
+
 	// -----------------------------------
 	// First, lets consider the last active time in the calculations in case
 	// this changes something.
@@ -329,11 +344,12 @@ func (f *Flow) Export() {
 	// ---------------------------------
 
 	// More sub-flow calculations
-	if f.f[ACTIVE].Get() > 0 {
-		f.f[SFLOW_FPACKETS].Set(f.f[TOTAL_FPACKETS].Get() / f.f[ACTIVE].Get())
-		f.f[SFLOW_FBYTES].Set(f.f[TOTAL_FVOLUME].Get() / f.f[ACTIVE].Get())
-		f.f[SFLOW_BPACKETS].Set(f.f[TOTAL_BPACKETS].Get() / f.f[ACTIVE].Get())
-		f.f[SFLOW_BBYTES].Set(f.f[TOTAL_BVOLUME].Get() / f.f[ACTIVE].Get())
+	activeCount := f.f[ACTIVE].Get()
+	if activeCount > 0 {
+		f.f[SFLOW_FPACKETS].Set(f.f[TOTAL_FPACKETS].Get() / activeCount)
+		f.f[SFLOW_FBYTES].Set(f.f[TOTAL_FVOLUME].Get() / activeCount)
+		f.f[SFLOW_BPACKETS].Set(f.f[TOTAL_BPACKETS].Get() / activeCount)
+		f.f[SFLOW_BBYTES].Set(f.f[TOTAL_BVOLUME].Get() / activeCount)
 	}
 	f.f[DURATION].Set(f.getLastTime() - f.firstTime)
 	if f.f[DURATION].Get() < 0 {
@@ -348,6 +364,7 @@ func (f *Flow) Export() {
 		f.proto)
 	for i := 0; i < NUM_FEATURES; i++ {
 		fmt.Printf(",%s", f.f[i].Export())
+		//fmt.Printf("%d: %s\n", i, f.f[i].Export())
 	}
 	fmt.Printf(",%d", f.dscp)
 	fmt.Println()

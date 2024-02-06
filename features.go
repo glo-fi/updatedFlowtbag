@@ -1,4 +1,4 @@
-/* 
+/*
  *  Copyright 2011 Daniel Arndt
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,7 +21,75 @@ package main
 
 import (
 	"fmt"
+
+	"github.com/google/differential-privacy/go/v2/dpagg"
 )
+
+func getBSF() *dpagg.BoundedSumFloat64 {
+	bs, err := dpagg.NewBoundedSumFloat64(&dpagg.BoundedSumFloat64Options{
+		Epsilon:                  100,
+		MaxPartitionsContributed: 1,
+		Lower:                    -1,
+		Upper:                    1000,
+	})
+	if err != nil {
+		fmt.Printf("%v\n", err)
+	}
+	return bs
+}
+
+func getBSD() *dpagg.BoundedStandardDeviation {
+	bs, err := dpagg.NewBoundedStandardDeviation(&dpagg.BoundedStandardDeviationOptions{
+		Epsilon:                      100,
+		MaxPartitionsContributed:     1,
+		MaxContributionsPerPartition: 1,
+		Lower:                        -1,
+		Upper:                        1000,
+	})
+	if err != nil {
+		fmt.Printf("%v\n", err)
+	}
+	return bs
+}
+
+func getC() *dpagg.Count {
+	bs, err := dpagg.NewCount(&dpagg.CountOptions{
+		Epsilon:                  100,
+		MaxPartitionsContributed: 1,
+	})
+	if err != nil {
+		fmt.Printf("%v\n", err)
+	}
+	return bs
+}
+
+func getBM() *dpagg.BoundedMean {
+	bs, err := dpagg.NewBoundedMean(&dpagg.BoundedMeanOptions{
+		Epsilon:                      100,
+		MaxPartitionsContributed:     1,
+		Lower:                        -1,
+		MaxContributionsPerPartition: 1,
+		Upper:                        1000,
+	})
+	if err != nil {
+		fmt.Printf("%v\n", err)
+	}
+	return bs
+}
+
+func getBQ() *dpagg.BoundedQuantiles {
+	bs, err := dpagg.NewBoundedQuantiles(&dpagg.BoundedQuantilesOptions{
+		Epsilon:                      100,
+		MaxPartitionsContributed:     1,
+		MaxContributionsPerPartition: 1,
+		Lower:                        -1,
+		Upper:                        1000,
+	})
+	if err != nil {
+		fmt.Printf("%v\n", err)
+	}
+	return bs
+}
 
 // Defines the minimum set of functions needed for a Feature.
 type Feature interface {
@@ -149,4 +217,96 @@ func (f *ValueFeature) Get() int64 {
 
 func (f *ValueFeature) Set(val int64) {
 	f.value = val
+}
+
+type DiffPrivFeature struct {
+	storedCount int64
+	sum         *dpagg.BoundedSumFloat64
+	standdev    *dpagg.BoundedStandardDeviation
+	mean        *dpagg.BoundedMean
+	count       *dpagg.Count
+	quantile    *dpagg.BoundedQuantiles
+}
+
+func (f *DiffPrivFeature) Init() {
+	f.sum = getBSF()
+	f.standdev = getBSD()
+	f.mean = getBM()
+	f.count = getC()
+	f.quantile = getBQ()
+}
+
+func (f *DiffPrivFeature) Set(val int64) {
+	val64 := float64(val)
+	if f.sum == nil {
+		f.sum = getBSF()
+	}
+	f.sum.Add(val64)
+	if f.standdev == nil {
+		f.standdev = getBSD()
+	}
+	f.standdev.Add(val64)
+	if f.mean == nil {
+		f.mean = getBM()
+	}
+	f.mean.Add(val64)
+	if f.count == nil {
+		f.count = getC()
+	}
+	f.count.Increment()
+	if f.quantile == nil {
+		f.quantile = getBQ()
+	}
+	f.quantile.Add(val64)
+}
+
+func (f *DiffPrivFeature) Add(val int64) {
+	f.Set(val)
+}
+
+func (f *DiffPrivFeature) Get() int64 {
+	if f.storedCount != 0 {
+		return f.storedCount
+	}
+	res, err := f.count.Result()
+	if err != nil {
+		panic(err)
+	}
+	f.storedCount = res
+	return f.storedCount
+}
+
+func (f *DiffPrivFeature) Export() string {
+	var (
+		stdDev float64 = 0
+		mean   float64 = 0
+		min    float64 = 0
+		max    float64 = 0
+	)
+	if f.mean != nil {
+		mean, _ = f.mean.Result()
+	}
+	if f.standdev != nil {
+		stdDev, _ = f.standdev.Result()
+	}
+	if f.quantile != nil {
+		min, _ = f.quantile.Result(0)
+		max, _ = f.quantile.Result(1)
+	}
+
+	return fmt.Sprintf("%f,%f,%f,%f", min, mean, max, stdDev)
+}
+
+func SuperInit(f interface{}, file string) {
+	switch v := f.(type) {
+	default:
+		fmt.Printf("UH OH %T\n", v)
+	case *DiffPrivFeature:
+		v.Init()
+		fmt.Printf("DiffPrivFeature\n")
+	case *ValueFeature:
+		fmt.Printf("Value Feature\n")
+	case Feature:
+		fmt.Printf("Feature\n")
+	}
 }
