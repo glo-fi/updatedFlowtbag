@@ -114,12 +114,12 @@ of comma seperated values is output. Line by line, these represent the flows
 in the capture. The features output are given, in order, in section 4.1. The
 second output channel is stderr. This is where reports, as well as any
 debugging information is displayed. This allows the user to redirect output
-to a text file, and still receive updates as the program runs. Output should probably sent to a specified file in the future.
+to a text file, and still receive updates as the program runs. Output should probably be sent to a specified file in the future.
 
 
 ### Statistics
 
-    srcip STRINGq
+    srcip STRING
     srcport NUMERIC
     dstip STRING
     dstport NUMERIC
