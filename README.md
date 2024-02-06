@@ -89,6 +89,7 @@ of meaning. However, this shouldn't be complicated to add.
 ## Usage
 
 Standard Usage: `./Flowtbag [FLAGS] [PCAP]`
+
 `-l: Capture traffic live from wlo0` (requires root permissions)
 
 `-d: Capture flows in LUCID format` (i.e., packet-level stats)
