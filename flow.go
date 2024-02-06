@@ -114,7 +114,7 @@ func (f *Flow) Init(srcip string,
 	f.f[TOTAL_BVOLUME] = new(ValueFeature)
 	if diffPriv {
 		f.f[FPKTL] = new(DiffPrivFeature)
-		//SuperInit(f.f[FPKTL], "test") <- Need to do a type check if we want to read parameters from file
+		//SuperInit(f.f[FPKTL], "file") <- Need to do a type check if we want to read parameters from file
 		f.f[BPKTL] = new(DiffPrivFeature)
 		f.f[FIAT] = new(DiffPrivFeature)
 		f.f[BIAT] = new(DiffPrivFeature)
@@ -177,7 +177,6 @@ func (f *Flow) Init(srcip string,
 	f.hasData = false
 	f.pdir = P_FORWARD
 	f.updateStatus(pkt)
-	return
 }
 
 func (f *Flow) updateTcpState(pkt packet) {
@@ -371,10 +370,7 @@ func (f *Flow) Export() {
 }
 
 func (f *Flow) CheckIdle(time int64) bool {
-	if (time - f.getLastTime()) > FLOW_TIMEOUT {
-		return true
-	}
-	return false
+	return (time - f.getLastTime()) > FLOW_TIMEOUT
 }
 
 func (f *Flow) getPreviousFlowStart(reduced_ts string, activeFlowTimings map[string][]int64) int64 {

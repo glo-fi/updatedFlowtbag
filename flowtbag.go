@@ -104,7 +104,7 @@ func init() {
 	flag.Int64Var(&reportInterval, "r", 500000,
 		"The interval at which to report the current state of Flowtbag")
 	flag.BoolVar(&liveCapture, "l", false,
-		"Capture traffic live from eth0")
+		"Capture traffic live from wlo0")
 	flag.BoolVar(&lucidCapture, "d", false, "Capture flows in Lucid format")
 	flag.BoolVar(&cryptoPanOn, "c", false, "Apply CryptoPan to IPs")
 	flag.StringVar(&keyFile, "k", "", "Provide key file for crypto-pan")
@@ -120,7 +120,7 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
-	if cryptoPanOn == true {
+	if cryptoPanOn {
 		key := randomKey()
 		cpan, err := New(key)
 		if err != nil {
@@ -337,7 +337,7 @@ func process(raw gopacket.Packet) {
 		startTime = time.Now()
 		log.Printf("Currently processing packet %d. Flowtbag size: %d", pCount,
 			len(activeFlows))
-		log.Printf("Took %fs to process %d packets", elapsed, reportInterval)
+		log.Printf("Took %vs to process %d packets", elapsed, reportInterval)
 	}
 
 	ipLayer := raw.Layer(layers.LayerTypeIPv4)
@@ -434,7 +434,7 @@ func lucidProcess(raw gopacket.Packet) {
 		startTime = time.Now()
 		log.Printf("Currently processing packet %d. Flowtbag size: %d", pCount,
 			len(activeFlows))
-		log.Printf("Took %fs to process %d packets", elapsed, reportInterval)
+		log.Printf("Took %vs to process %d packets", elapsed, reportInterval)
 	}
 
 	ipLayer := raw.Layer(layers.LayerTypeIPv4)
