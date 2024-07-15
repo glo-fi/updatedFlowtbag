@@ -45,7 +45,7 @@ const (
 )
 
 // This is how we represent each packet after it is decoded. A simple map from the
-// string value for it's name to the value
+// string value for its name to the value
 type packet map[string]int64
 
 const (

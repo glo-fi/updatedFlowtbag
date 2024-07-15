@@ -19,6 +19,7 @@
 
 package main
 
+// TCP flags
 const (
 	TCP_FIN = 0x01
 	TCP_SYN = 0x02
@@ -28,6 +29,7 @@ const (
 	TCP_URG = 0x20
 )
 
+// TCP state machine states
 const (
 	TCP_STATE_START = iota
 	TCP_STATE_SYN
@@ -47,6 +49,8 @@ func tcpSet(find int64, flags int64) bool {
 	return ((find & flags) == find)
 }
 
+// My attempt at the TCP state machine.
+// For funkier flows, I'm not sure if it is 100% accurate. If so, this may need to be updated.
 func (t *tcpState) TcpUpdate(flags int64, dir int8, pdir int8) {
 	if tcpSet(TCP_RST, flags) {
 		t.State = TCP_STATE_RST

@@ -1,7 +1,5 @@
 ## License
 
-Copyright 2011 Daniel Arndt
-
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -14,8 +12,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 
-Author: 
-    Daniel Arndt <danielarndt@gmail.com> (http://dan.arndt.ca)
 
 Code edited and updated (extensively) by Robert Flood <r.flood@ed.ac.uk>
 
@@ -24,7 +20,7 @@ Code edited and updated (extensively) by Robert Flood <r.flood@ed.ac.uk>
 The purpose of this program is to calculate flow statistics from a given 
 capture file. Flowtbag was designed with offline processing as the primary
 focus, but has been extended to include online processing. Note: this seems
-to mess with closing flows via timeouts. Make sure to choose a sesible
+to mess with closing flows via timeouts (need to investigate further). Make sure to choose a sensible
 timeout value!
 
 ## Requirements
@@ -37,7 +33,7 @@ system, the following command will install the appropriate library:
 Other distributions will likely have a similar package name.
 
 To compile from source, you'll need a Go compiler, libpcap headers, and
-gopcap.
+[gopacket](https://pkg.go.dev/github.com/google/gopacket).
 
 ### Go compiler:
 
@@ -52,14 +48,6 @@ On a debian based system, you can execute the following command:
 Other distributions will likely have a similar package name. It is
 important that if you are compiling the program from source, you install
 the developement headers.
-
-## Compilation
-
-Once libpcap is installed, `go` will install the necessary go dependencies. Just
-build and install using go.
-
-   go get github.com/danielarndt/flowtbag
-
 
 ## Privacy Features
 
@@ -106,6 +94,9 @@ Standard Usage: `./Flowtbag [FLAGS] [PCAP]`
 
 `-u: Export flows stats for unidirectional flows`
 
+## Example Command
+
+`./Flowtbag [Input PCAP] > [Output File]`
 
 ## Output
 
@@ -116,6 +107,7 @@ second output channel is stderr. This is where reports, as well as any
 debugging information is displayed. This allows the user to redirect output
 to a text file, and still receive updates as the program runs. Output should probably be sent to a specified file in the future.
 
+When processing LUCID flows (i.e., packet-level statistics with the -d flag), features are output in a bit of a confusing manner (and this should probably be cleaned up). The packet-level flow statistics are still output to stdout, which can be treated as a CSV file. Each feature is output to a column, each containing a (variable length) list of features. As far as I'm aware, these are difficult to ingest into an ML pipeline directly using the standard data science libraries (pandas, numpy, scipy etc etc.). Features are *also* output to their own individual files in the supplied output folder, flows separated by newlines, alongside an accompanying *metadata* file. This metadata file contains the unique identifiers for a given flow. Across all of these files, all flows appear in the same order, e.g., the 100th line in the metadata file corresponds to the 100th line in the *pkt sizes* file corresponds to the 100th line in the *pkt flags* file.
 
 ### Statistics
 
@@ -164,3 +156,40 @@ to a text file, and still receive updates as the program runs. Output should pro
     total_fhlen NUMERIC
     total_bhlen NUMERIC
     dscp NUMERIC
+
+### Performance
+
+Testing Flowtbag on 1GB of TCP/UDP traffic, it takes about 5 seconds to spit out flow stats. Calculating noisy/private stats (via the -p flag) adds considerable overhead. Detailed performance is as follows:
+
+*Regular flows*
+
+real	0m2.135s
+
+user	0m6.009s
+
+sys	0m0.586s
+
+*LUCID flows*
+
+real	0m2.375s
+
+user	0m4.240s
+
+sys	0m0.452s
+
+*CryptoPAn Flows*
+
+real	0m45.994s
+
+user	0m49.855s
+
+sys	0m5.319s
+
+*Differentially Private Flows*
+
+real	0m45.994s
+
+user	0m49.855s
+
+sys	0m5.319s
+

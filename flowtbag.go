@@ -1,5 +1,4 @@
 /*
- *  Copyright 2011 Daniel Arndt
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -13,7 +12,6 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  *
- *  @author: Daniel Arndt <danielarndt@gmail.com>
  *
  */
 
@@ -37,15 +35,13 @@ import (
 // Create some constants
 const (
 	TAB       = "\t"
-	COPYRIGHT = "Copyright (C) 2010 Daniel Arndt\n" +
-		"Licensed under the Apache License, Version 2.0 (the \"License\"); " +
+	COPYRIGHT = "Licensed under the Apache License, Version 2.0 (the \"License\"); " +
 		"you may not use this file except in compliance with the License. " +
 		"You may obtain a copy of the License at\n" +
-		"\n    http://www.apache.org/licenses/LICENSE-2.0\n" +
-		"\nFor more information, please visit: \n" +
-		"http://web.cs.dal.ca/~darndt/projects/flowtbag"
+		"\n    http://www.apache.org/licenses/LICENSE-2.0\n"
 )
 
+// Converts flow tuple properties into a deterministic string
 func stringTuple(ip1 string, port1 uint16, ip2 string, port2 uint16, proto uint8) string {
 	if ip1 > ip2 {
 		return fmt.Sprintf("%s,%d,%s,%d,%d", ip1, port1, ip2, port2, proto)
@@ -53,6 +49,7 @@ func stringTuple(ip1 string, port1 uint16, ip2 string, port2 uint16, proto uint8
 	return fmt.Sprintf("%s,%d,%s,%d,%d", ip2, port2, ip1, port1, proto)
 }
 
+// Converts IPs and protocol into a deterministic string
 func reducedStringTuple(ip1 string, ip2 string, proto uint8) string {
 	if ip1 > ip2 {
 		return fmt.Sprintf("%s,%s,%d", ip1, ip2, proto)
@@ -66,12 +63,14 @@ func displayWelcome() {
 	log.Println("\n" + COPYRIGHT)
 }
 
+// Display usage
 func usage() {
 	fmt.Fprintf(os.Stderr, "%s [options] <capture file>\n", os.Args[0])
 	fmt.Fprintf(os.Stderr, "options:\n")
 	flag.PrintDefaults()
 }
 
+// Export Idle flows
 func cleanupActive(time int64) {
 	count := 0
 	for tuple, flow := range activeFlows {
@@ -85,21 +84,25 @@ func cleanupActive(time int64) {
 }
 
 var (
-	fileName           string
-	reportInterval     int64
-	liveCapture        bool
-	unidirectional     bool
-	lucidCapture       bool
-	cryptoPanOn        bool
-	outputFolder       string
-	keyFile            string
-	flowStatBuffer     [][][]int64
-	flowMetadataBuffer [][]interface{}
-	initTime           string
-	ctx                *Cryptopan
-	diffPriv           bool
+	fileName           string          // Input PCAP filename
+	reportInterval     int64           // Print out update every n flows
+	liveCapture        bool            // Capture from eth0
+	unidirectional     bool            // Include unidirectional flows in capture
+	lucidCapture       bool            // Capture packets in "LUCID" format (i.e., packet-level statistics)
+	cryptoPanOn        bool            // Anonymise IPs using CryptoPAN
+	outputFolder       string          // Output stats to folder
+	keyFile            string          // Input Key file for CryptoPAN
+	flowStatBuffer     [][][]int64     // Buffer for flow stats (used when calculated LUCID stats)
+	flowMetadataBuffer [][]interface{} // Buffer for flow metadata (used when calculated LUCID stats)
+	initTime           string          // Start time
+	ctx                *Cryptopan      // CryptoPAN object
+	diffPriv           bool            // Anoymise flows statistics by adding noise via the Laplace Mechanism.
+	// I have no idea if this actually meets the requirements for global differential privacy.
+	// I don't think it does if there is a lot of repitition in the original PCAP file, but otherwise
+	// it should provide some privacy guarantees (I think)
 )
 
+// Init Flowtbag with default values
 func init() {
 	flag.Int64Var(&reportInterval, "r", 500000,
 		"The interval at which to report the current state of Flowtbag")
@@ -138,8 +141,10 @@ func init() {
 	}
 }
 
+// Print features for CSV header.
+// Really annoying to add new features and I assume there's some better way of doing this.
 func printFeatures() {
-	fmt.Printf("%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,\n",
+	fmt.Printf("%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n",
 		"Process Time",
 		"Src IP",
 		"Src Port",
@@ -189,6 +194,8 @@ func printFeatures() {
 		"DSCP")
 }
 
+// Print LUCID features for CSV header. Features printed as arrays that need to be parsed to be used later.
+// Really annoying to add new features and I assume there's some better way of doing this.
 func printLucidFeatures() {
 	fmt.Printf("%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n",
 		"Process Time",
@@ -208,6 +215,7 @@ func printLucidFeatures() {
 
 }
 
+// Begin collection
 func collection() {
 	displayWelcome()
 	// This will be our capture file
@@ -217,12 +225,15 @@ func collection() {
 	)
 	log.Printf("%s\n", pcap.Version())
 	if !liveCapture {
-		p, err = pcap.OpenOffline(fileName)
+		p, err = pcap.OpenOffline(fileName) // Capture packets from offline file
+		if p == nil {
+			log.Fatalf("OpenOffline(%s) failed: %s\n", fileName, err)
+		}
 	} else {
-		p, err = pcap.OpenLive("wlo1", 1600, true, pcap.BlockForever)
-	}
-	if p == nil {
-		log.Fatalf("Openoffline(%s) failed: %s\n", fileName, err)
+		p, err = pcap.OpenLive("wlo1", 1600, true, pcap.BlockForever) // Capture packets from live "wlo1" interface
+		if p == nil {
+			log.Fatalf("OpenLive(wlo1) failed: %s\n", err)
+		}
 	}
 
 	p.SetBPFFilter("ip and (tcp or udp)")
@@ -264,14 +275,14 @@ func main() {
 }
 
 var (
-	pCount            int64 = 0
-	flowCount         int64 = 0
-	startTime         time.Time
-	endTime           time.Time
-	elapsed           time.Duration
-	activeFlows       map[string]*Flow      = make(map[string]*Flow)
-	activeLucidFlows  map[string]*LucidFlow = make(map[string]*LucidFlow)
-	activeFlowTimings map[string][]int64    = make(map[string][]int64)
+	pCount            int64                 = 0                           // Packet Count
+	flowCount         int64                 = 0                           // Flow Count
+	startTime         time.Time                                           // Start Time
+	endTime           time.Time                                           // End Time
+	elapsed           time.Duration                                       // Duration
+	activeFlows       map[string]*Flow      = make(map[string]*Flow)      // Active Flows
+	activeLucidFlows  map[string]*LucidFlow = make(map[string]*LucidFlow) // Active Lucid Flows
+	activeFlowTimings map[string][]int64    = make(map[string][]int64)    // Flow Timings
 )
 
 func printStackTrace() {
@@ -293,6 +304,7 @@ func catchPanic() {
 	}
 }
 
+// Bitwise TCP flags
 func flagsAndOffset(t *layers.TCP) uint16 {
 	f := uint16(0)
 	if t.FIN {
@@ -325,6 +337,7 @@ func flagsAndOffset(t *layers.TCP) uint16 {
 	return f
 }
 
+// Process packets into flows
 func process(raw gopacket.Packet) {
 	defer catchPanic()
 	pCount++
@@ -393,9 +406,9 @@ func process(raw gopacket.Packet) {
 			delete(activeFlows, ts)
 			return
 		} else {
-			// Already in, but has expired (Do I need to delete the flow from the map here?)
+			// Already in, but has expired
 			flow.Export()
-			//delete(activeFlows, ts)
+			delete(activeFlows, ts)
 			flowCount++
 			f := new(Flow)
 			f.Init(srcip, srcport, dstip, dstport, proto, pkt, flowCount)
@@ -422,6 +435,7 @@ func process(raw gopacket.Packet) {
 	}
 }
 
+// Process packets into LUCID flows (should combine this with process())
 func lucidProcess(raw gopacket.Packet) {
 	defer catchPanic()
 	pCount++
@@ -517,6 +531,8 @@ func lucidProcess(raw gopacket.Packet) {
 	}
 }
 
+// Export for use in C code. I don't actually use this in any way, but sure it's a bit of fun, isn't it?
+//
 //export CollectLiveFlowStats
 func CollectLiveFlowStats() {
 	var (

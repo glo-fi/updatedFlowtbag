@@ -127,7 +127,7 @@ func flushFlowStatsBuffer(buffer [][][]int64, initTime string, force bool) [][][
 			for j := 0; j < len(buffer); j++ {
 				single_buffer[j] = buffer[j][i]
 			}
-			flowStatsToFile(single_buffer, fmt.Sprintf("%s/%s/%s-%s.txt", outputFolder, initTime, initTime, LUCID_FEATURE_NAME_MAP[i])) // Need Unique Name of File for Each Output
+			flowStatsToFile(single_buffer, fmt.Sprintf("%s/%s/%s-%s.csv", outputFolder, initTime, initTime, LUCID_FEATURE_NAME_MAP[i])) // Need Unique Name of File for Each Output
 		}
 	}
 	return empty_buffer
@@ -138,7 +138,7 @@ func flushMetadataBuffer(buffer [][]interface{}, initTime string, force bool) []
 	if (len(buffer) < BUFFER_LIMIT) && !force {
 		return buffer
 	} else {
-		filename := fmt.Sprintf("%s/%s/%s-%s.txt", outputFolder, initTime, initTime, "metadata")
+		filename := fmt.Sprintf("%s/%s/%s-%s.csv", outputFolder, initTime, initTime, "metadata")
 		f, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
 			log.Fatal(err)
