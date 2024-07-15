@@ -164,32 +164,24 @@ Testing Flowtbag on 1GB of TCP/UDP traffic, it takes about 5 seconds to spit out
 *Regular flows*
 
 real	0m2.135s
-
 user	0m6.009s
-
 sys	0m0.586s
 
 *LUCID flows*
 
 real	0m2.375s
-
 user	0m4.240s
-
 sys	0m0.452s
 
 *CryptoPAn Flows*
 
-real	0m45.994s
-
-user	0m49.855s
-
-sys	0m5.319s
+real	0m1.987s
+user	0m5.704s
+sys	0m0.469s
 
 *Differentially Private Flows*
 
 real	0m45.994s
-
 user	0m49.855s
-
 sys	0m5.319s
 
