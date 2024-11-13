@@ -84,22 +84,26 @@ func cleanupActive(time int64) {
 }
 
 var (
-	fileName           string          // Input PCAP filename
-	reportInterval     int64           // Print out update every n flows
-	liveCapture        bool            // Capture from eth0
-	unidirectional     bool            // Include unidirectional flows in capture
-	lucidCapture       bool            // Capture packets in "LUCID" format (i.e., packet-level statistics)
-	cryptoPanOn        bool            // Anonymise IPs using CryptoPAN
-	outputFolder       string          // Output stats to folder
-	keyFile            string          // Input Key file for CryptoPAN
+	// Input arguments
+	fileName       string // Input PCAP filename
+	reportInterval int64  // Print out update every n flows
+	liveCapture    bool   // Capture from eth0
+	unidirectional bool   // Include unidirectional flows in output
+	lucidCapture   bool   // Capture packets in "LUCID" format (i.e., packet-level statistics)
+	cryptoPanOn    bool   // Anonymise IPs using CryptoPAN
+	outputFolder   string // Output LUCID stats to folder
+	keyFile        string // Input Key file for CryptoPAN
+	// I have no idea if this actually meets the requirements for global differential privacy.
+	// I don't think it does if there is a lot of repitition in the original PCAP file, but otherwise
+	// it should provide some privacy guarantees (I think)
+	diffPriv bool // Anoymise flows statistics by adding noise via the Laplace Mechanism. (Unused)
+
+	// Global variables
 	flowStatBuffer     [][][]int64     // Buffer for flow stats (used when calculated LUCID stats)
 	flowMetadataBuffer [][]interface{} // Buffer for flow metadata (used when calculated LUCID stats)
 	initTime           string          // Start time
 	ctx                *Cryptopan      // CryptoPAN object
-	diffPriv           bool            // Anoymise flows statistics by adding noise via the Laplace Mechanism.
-	// I have no idea if this actually meets the requirements for global differential privacy.
-	// I don't think it does if there is a lot of repitition in the original PCAP file, but otherwise
-	// it should provide some privacy guarantees (I think)
+
 )
 
 // Init Flowtbag with default values
@@ -113,15 +117,17 @@ func init() {
 	flag.StringVar(&keyFile, "k", "", "Provide key file for crypto-pan")
 	flag.BoolVar(&unidirectional, "u", false, "Export flows stats for unidirectional flows")
 	flag.BoolVar(&diffPriv, "p", false, "Export flow stats with diffpriv")
-	flag.StringVar(&outputFolder, "o", "results", "Output flow statistics to specified folder")
+	flag.StringVar(&outputFolder, "o", "", "Output flow statistics to specified folder")
 	flag.Parse()
 	fullInitTime := time.Now()
 	initTime = fmt.Sprintf("%d-%02d-%02dT%02d:%02d:%02d",
 		fullInitTime.Year(), fullInitTime.Month(), fullInitTime.Day(),
 		fullInitTime.Hour(), fullInitTime.Minute(), fullInitTime.Second())
-	err := os.MkdirAll(fmt.Sprintf("%s/%s/", outputFolder, initTime), 0755)
-	if err != nil {
-		panic(err)
+	if outputFolder != "" {
+		err := os.MkdirAll(fmt.Sprintf("%s/%s/", outputFolder, initTime), 0755)
+		if err != nil {
+			panic(err)
+		}
 	}
 	if cryptoPanOn {
 		key := randomKey()
@@ -258,8 +264,10 @@ func collection() {
 			flowStatBuffer = append(flowStatBuffer, flow_stats)
 			flowMetadataBuffer = append(flowMetadataBuffer, flow_metadata)
 		}
-		flushFlowStatsBuffer(flowStatBuffer, initTime, true)
-		flushMetadataBuffer(flowMetadataBuffer, initTime, true)
+		if outputFolder != "" {
+			flushFlowStatsBuffer(flowStatBuffer, initTime, true)
+			flushMetadataBuffer(flowMetadataBuffer, initTime, true)
+		}
 	} else {
 		for packet := range packetSource.Packets() {
 			process(packet)
@@ -502,8 +510,10 @@ func lucidProcess(raw gopacket.Packet) {
 			flow_metadata, flow_stats := flow.splitLucidFlow()
 			flowStatBuffer = append(flowStatBuffer, flow_stats)
 			flowMetadataBuffer = append(flowMetadataBuffer, flow_metadata)
-			flowStatBuffer = flushFlowStatsBuffer(flowStatBuffer, initTime, false)
-			flowMetadataBuffer = flushMetadataBuffer(flowMetadataBuffer, initTime, false)
+			if outputFolder != "" {
+				flowStatBuffer = flushFlowStatsBuffer(flowStatBuffer, initTime, false)
+				flowMetadataBuffer = flushMetadataBuffer(flowMetadataBuffer, initTime, false)
+			}
 			delete(activeLucidFlows, ts)
 			return
 		} else {
@@ -512,8 +522,10 @@ func lucidProcess(raw gopacket.Packet) {
 			flow_metadata, flow_stats := flow.splitLucidFlow()
 			flowStatBuffer = append(flowStatBuffer, flow_stats)
 			flowMetadataBuffer = append(flowMetadataBuffer, flow_metadata)
-			flowStatBuffer = flushFlowStatsBuffer(flowStatBuffer, initTime, false)
-			flowMetadataBuffer = flushMetadataBuffer(flowMetadataBuffer, initTime, false)
+			if outputFolder != "" {
+				flowStatBuffer = flushFlowStatsBuffer(flowStatBuffer, initTime, false)
+				flowMetadataBuffer = flushMetadataBuffer(flowMetadataBuffer, initTime, false)
+			}
 			delete(activeLucidFlows, ts) // This feels like it should be necessary?
 			flowCount++
 			f := new(LucidFlow)
