@@ -40,7 +40,7 @@ const (
 const (
 	// Configurables. These should at some point be read in from a configuration
 	// file.
-	FLOW_TIMEOUT   = 600000000000
+	FLOW_TIMEOUT   = 6000000000
 	IDLE_THRESHOLD = 1000000000
 )
 

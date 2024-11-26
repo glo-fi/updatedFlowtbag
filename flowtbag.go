@@ -129,6 +129,7 @@ func init() {
 			panic(err)
 		}
 	}
+
 	if cryptoPanOn {
 		key := randomKey()
 		cpan, err := New(key)
@@ -242,7 +243,7 @@ func collection() {
 		}
 	}
 
-	p.SetBPFFilter("ip and (tcp or udp)")
+	p.SetBPFFilter("(ip or ip6) and (tcp or udp)")
 
 	log.Println("Starting Flowtbag")
 	startTime = time.Now()
@@ -271,6 +272,13 @@ func collection() {
 	} else {
 		for packet := range packetSource.Packets() {
 			process(packet)
+			if len(activeFlows)%100 == 0 {
+				for _, flow := range activeFlows {
+					if flow.blast > FLOW_TIMEOUT && flow.flast > FLOW_TIMEOUT {
+						flow.Export()
+					}
+				}
+			}
 		}
 		for _, flow := range activeFlows {
 			flow.Export()
@@ -345,6 +353,7 @@ func flagsAndOffset(t *layers.TCP) uint16 {
 	return f
 }
 
+/*
 // Process packets into flows
 func process(raw gopacket.Packet) {
 	defer catchPanic()
@@ -438,6 +447,132 @@ func process(raw gopacket.Packet) {
 		// Find whether other flows with same source/destination IP are also in the flowmap
 		prev_time := f.getPreviousFlowStart(reduced_ts, activeFlowTimings)
 		f.f[TIME_PREV_SAME_HOST].Set(prev_time)
+		activeFlows[ts] = f
+		return
+	}
+}
+*/
+
+func process(raw gopacket.Packet) {
+	defer catchPanic()
+	pCount++
+	if (pCount % reportInterval) == 0 {
+		timeInt := raw.Metadata().Timestamp.Unix()
+		endTime = time.Now()
+		cleanupActive(timeInt)
+		runtime.GC()
+		elapsed = endTime.Sub(startTime)
+		startTime = time.Now()
+		log.Printf("Currently processing packet %d. Flowtbag size: %d", pCount, len(activeFlows))
+		log.Printf("Took %vs to process %d packets", elapsed, reportInterval)
+	}
+
+	var (
+		ipVersion int
+		srcip     string
+		srcport   uint16
+		dstip     string
+		dstport   uint16
+		proto     uint8
+		pkt       = make(map[string]int64, 10)
+	)
+
+	ipv4Layer := raw.Layer(layers.LayerTypeIPv4)
+	ipv6Layer := raw.Layer(layers.LayerTypeIPv6)
+
+	if ipv4Layer != nil {
+		//fmt.Println("v4")
+		ipVersion = 4
+		ip, _ := ipv4Layer.(*layers.IPv4)
+
+		if ip.Version != uint8(ipVersion) {
+			log.Print("Not IPv4. Packet should not have made it this far")
+			return
+		}
+
+		pkt["iphlen"] = int64(ip.IHL * 4)
+		pkt["dscp"] = int64(ip.TOS >> 2)
+		pkt["len"] = int64(ip.Length)
+		proto = uint8(ip.Protocol)
+		srcip = ip.SrcIP.String()
+		dstip = ip.DstIP.String()
+
+	} else if ipv6Layer != nil {
+		//fmt.Println("v6")
+		ipVersion = 6
+		ip, _ := ipv6Layer.(*layers.IPv6)
+
+		trafficClass := ip.TrafficClass
+		dscp := int64(trafficClass) >> 2 // Extract DSCP (first 6 bits)
+
+		pkt["iphlen"] = int64(len(ip.Contents))
+		pkt["dscp"] = dscp
+		pkt["len"] = int64(ip.Length)
+		proto = uint8(ip.NextHeader)
+		srcip = ip.SrcIP.String()
+		dstip = ip.DstIP.String()
+
+	} else {
+		log.Print("Not an IP packet. Packet should not have made it this far")
+		return
+	}
+
+	pkt["num"] = pCount
+
+	if proto == 6 { // TCP
+		tcpLayer := raw.Layer(layers.LayerTypeTCP)
+		if tcpLayer != nil {
+			tcp, _ := tcpLayer.(*layers.TCP)
+			srcport = uint16(tcp.SrcPort)
+			dstport = uint16(tcp.DstPort)
+			pkt["prhlen"] = int64(tcp.DataOffset * 4)
+			pkt["flags"] = int64(flagsAndOffset(tcp))
+		}
+	} else if proto == 17 { // UDP
+		udpLayer := raw.Layer(layers.LayerTypeUDP)
+		if udpLayer != nil {
+			udp, _ := udpLayer.(*layers.UDP)
+			pkt["prhlen"] = int64(udp.Length)
+			srcport = uint16(udp.SrcPort)
+			dstport = uint16(udp.DstPort)
+		}
+	} else {
+		fmt.Printf("%s : %s : %d : %d \n", srcip, dstip, raw.Metadata().Timestamp.Unix(), proto)
+		log.Fatal("Not TCP or UDP. Packet should not have made it this far.")
+		return
+	}
+
+	pkt["time"] = raw.Metadata().Timestamp.UnixNano()
+	ts := stringTuple(srcip, srcport, dstip, dstport, proto)
+	reducedTs := reducedStringTuple(srcip, dstip, proto)
+	flow, exists := activeFlows[ts]
+	if exists {
+		returnVal := flow.Add(pkt, srcip)
+		if returnVal == ADD_SUCCESS {
+			return
+		} else if returnVal == ADD_CLOSED {
+			flow.Export()
+			delete(activeFlows, ts)
+			return
+		} else {
+			flow.Export()
+			delete(activeFlows, ts)
+			flowCount++
+			f := new(Flow)
+			f.Init(srcip, srcport, dstip, dstport, proto, pkt, flowCount)
+			activeFlowTimings[reducedTs] = append(activeFlowTimings[reducedTs], f.firstTime)
+			prevTime := f.getPreviousFlowStart(reducedTs, activeFlowTimings)
+			f.f[TIME_PREV_SAME_HOST].Set(prevTime)
+			activeFlows[ts] = f
+			return
+		}
+	} else {
+		flowCount++
+		f := new(Flow)
+		f.Init(srcip, srcport, dstip, dstport, proto, pkt, flowCount)
+		activeFlowTimings[reducedTs] = append(activeFlowTimings[reducedTs], f.firstTime)
+		prevTime := f.getPreviousFlowStart(reducedTs, activeFlowTimings)
+		f.f[TIME_PREV_SAME_HOST].Set(prevTime)
 		activeFlows[ts] = f
 		return
 	}
