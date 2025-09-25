@@ -59,7 +59,7 @@ func reducedStringTuple(ip1 string, ip2 string, proto uint8) string {
 
 // Display a welcome message
 func displayWelcome() {
-	log.Println("\nWelcome to Flowtbag2 0.1b")
+	log.Println("\nWelcome to Flowtbad 1.0b")
 	log.Println("\n" + COPYRIGHT)
 }
 

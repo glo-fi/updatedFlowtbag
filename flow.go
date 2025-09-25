@@ -105,7 +105,8 @@ func (f *Flow) Init(srcip string,
 	dstport uint16,
 	proto uint8,
 	pkt packet,
-	id int64) {
+	id int64,
+) {
 	f.f = make([]Feature, NUM_FEATURES)
 	f.valid = false
 	f.f[TOTAL_FPACKETS] = new(ValueFeature)
@@ -114,7 +115,7 @@ func (f *Flow) Init(srcip string,
 	f.f[TOTAL_BVOLUME] = new(ValueFeature)
 	if diffPriv {
 		f.f[FPKTL] = new(DiffPrivFeature)
-		//SuperInit(f.f[FPKTL], "file") <- Need to do a type check if we want to read parameters from file
+		// SuperInit(f.f[FPKTL], "file") <- Need to do a type check if we want to read parameters from file
 		f.f[BPKTL] = new(DiffPrivFeature)
 		f.f[FIAT] = new(DiffPrivFeature)
 		f.f[BIAT] = new(DiffPrivFeature)
@@ -363,7 +364,7 @@ func (f *Flow) Export() {
 		f.proto)
 	for i := 0; i < NUM_FEATURES; i++ {
 		fmt.Printf(",%s", f.f[i].Export())
-		//fmt.Printf("%d: %s\n", i, f.f[i].Export())
+		// fmt.Printf("%d: %s\n", i, f.f[i].Export())
 	}
 	fmt.Printf(",%d", f.dscp)
 	fmt.Println()
